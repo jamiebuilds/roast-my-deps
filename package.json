@@ -4,7 +4,7 @@
   "description": "Your dependencies are bad and you should feel bad",
   "main": "index.js",
   "bin": "cli.js",
-  "repository": "https://github.com/jamiebuilds/roast-my-package-json",
+  "repository": "https://github.com/jamiebuilds/roast-my-deps",
   "author": "Jamie Kyle <me@thejameskyle.com>",
   "license": "MIT",
   "keywords": [
