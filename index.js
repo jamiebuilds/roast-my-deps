@@ -233,18 +233,25 @@ async function roastMyDeps(rootPkgPath /*: string */, opts /*: RoastMyDepsOpts *
 
       console.log(chalk.bold.bgGreen.white(`${entry.name}: ${prettyBytes(sizes.outputBytes)} min, ${prettyBytes(sizes.outputBytesGz)} min+gz`));
     } else {
-      console.log(chalk.red(entry.name));
+      console.error(chalk.red(entry.name));
     }
 
     return { entry, code, sizes };
   }));
 
+  let hasErrors = false;
+
   let successful = results.filter(res => {
     if (res.code !== 0) {
-      console.log(chalk.red(`Failed to build ${chalk.bold(res.entry.name)}, exited with ${chalk.bold(res.code)}`));
+      hasErrors = true;
+      console.error(chalk.red(`Failed to build ${chalk.bold(res.entry.name)}, exited with ${chalk.bold(res.code)}`));
     }
     return res.code === 0;
   });
+
+  if (hasErrors && !verbose) {
+    console.error(chalk.red(`\nSome bundles failed to build. Try re-running with ${chalk.bold('--verbose')}\n`));
+  }
 
   let sorted = successful.sort((a, b) => {
     return b.sizes.outputBytesGz - a.sizes.outputBytesGz;
