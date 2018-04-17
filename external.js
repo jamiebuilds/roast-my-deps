@@ -1,6 +1,6 @@
 // @flow
 'use strict';
-const path = require('path');
+// const path = require('path');
 
 const ROAST_MY_DEPS_INPUT_FILE = process.env.ROAST_MY_DEPS_INPUT_FILE;
 const ROAST_MY_DEPS_TARGET_ONLY = process.env.ROAST_MY_DEPS_TARGET_ONLY;
@@ -11,10 +11,7 @@ if (!ROAST_MY_DEPS_TARGET_ONLY) throw new Error('Missing process.env.ROAST_MY_DE
 if (!ROAST_MY_DEPS_TARGET_NAME) throw new Error('Missing process.env.ROAST_MY_DEPS_TARGET_NAME');
 
 module.exports = (id /*: string */) => {
-  let ext = path.extname(id);
-  if (ext !== '.js' && ext !== '.json' && ext !== '') return true;
   if (ROAST_MY_DEPS_TARGET_ONLY !== 'true') return false;
-  id = id.replace(/^.*commonjs-.*:/, '');
   if (id[0] === '.') return false;
   if (id.includes(ROAST_MY_DEPS_INPUT_FILE)) return false;
   if (id.includes(ROAST_MY_DEPS_TARGET_NAME)) return false;

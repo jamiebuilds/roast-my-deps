@@ -16,7 +16,7 @@ const cli = meow({
 
 
     Flags
-      --config, -c <config>      Custom Rollup Config
+      --config, -c <config>      Custom Webpack Config
       --ignore, -i <dep name>    Ignore packages (can be globs)
       --only, -o <dep name>      Only bundle certain packages
       --verbose, -v, --debug     Stream stdout/stderr from Rollup

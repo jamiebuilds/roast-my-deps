@@ -14,8 +14,7 @@ const isBuiltinModule = require('is-builtin-module');
 const micromatch = require('micromatch');
 const REGEXES = require('./regexes');
 
-
-const ROLLUP_BIN = path.join(__dirname, 'node_modules', '.bin', 'rollup');
+const WEBPACK_BIN = path.join(__dirname, 'node_modules', '.bin', 'webpack-cli');
 const DEFAULT_CONFIG = path.join(__dirname, 'config.js');
 const DEFAULT_SOURCE_GLOBS = [
   '**/src/**/*.+(js|jsx|ts|tsx|babel)',
@@ -123,6 +122,33 @@ async function createEntry(cacheDir, kind, name, fileContents) {
   return { kind, name, id, input, output, outputGz, fileContents };
 }
 
+async function bundleEntry(configPath, cacheDir, entry, verbose) {
+  let { code } = await spawn(WEBPACK_BIN, [
+    '--config', configPath
+  ], {
+    cwd: cacheDir,
+    stdio: verbose ? ['ignore', 'inherit', 'inherit'] : 'ignore',
+    env: Object.assign({}, process.env, {
+      ROAST_MY_DEPS_INPUT_FILE: entry.input,
+      ROAST_MY_DEPS_OUTPUT_FILE: entry.output,
+      ROAST_MY_DEPS_TARGET_NAME: entry.name,
+      ROAST_MY_DEPS_TARGET_ONLY: entry.kind === 'all' ? 'false' : 'true',
+    }),
+  });
+
+  let sizes = {};
+
+  if (code === 0) {
+    let outputStats = await stat(entry.output);
+    let outputStatsGz = await stat(entry.outputGz);
+
+    sizes.outputBytes = outputStats.size;
+    sizes.outputBytesGz = outputStatsGz.size;
+  }
+
+  return { entry, code, sizes };
+}
+
 /*::
 export type RoastMyDepsOpts = {
   sourceGlobs?: Array<string>,
@@ -195,14 +221,24 @@ async function roastMyDeps(rootPkgPath /*: string */, opts /*: RoastMyDepsOpts *
 
   await Promise.all(Object.keys(importBuckets).map(async depName => {
     let matches = importBuckets[depName] || [];
-    let fileContents = matches.map(match => `console.log(require("${match}"));`).join('\n');
+    let fileContents = matches.map(match => `f(require("${match}"));`).join('\n');
     let entry = await createEntry(cacheDir, 'module', depName, fileContents);
 
     entries.push(entry);
   }));
 
-  entries.push(
-    await createEntry(cacheDir, 'all', '_all', safeExternalImports.map(importSpecifier => `console.log(require('${importSpecifier}'));`).join('\n'))
+  let emptyEntry = await createEntry(cacheDir, 'empty', '_empty', '');
+  let emptyResults = await bundleEntry(configPath, cacheDir, emptyEntry, verbose);
+
+  entries.unshift(
+    await createEntry(cacheDir, 'all', '_all', safeExternalImports.map(importSpecifier => `f(require("${importSpecifier}"));`).join('\n'))
+  );
+
+  let mainPath = path.join(cacheDir, '_main.html');
+
+  await writeFile(
+    mainPath,
+    entries.map(entry => `<script src="./${path.relative(cacheDir, entry.input)}"></script>`).join('\n')
   );
 
   let filteredEntries = entries.filter(entry => {
@@ -210,33 +246,20 @@ async function roastMyDeps(rootPkgPath /*: string */, opts /*: RoastMyDepsOpts *
   });
 
   let results = await Promise.all(filteredEntries.map(async entry => {
-    let { code } = await spawn(ROLLUP_BIN, [
-      '-c', configPath,
-    ], {
-      env: Object.assign({}, process.env, {
-        ROAST_MY_DEPS_INPUT_FILE: entry.input,
-        ROAST_MY_DEPS_OUTPUT_FILE: entry.output,
-        ROAST_MY_DEPS_TARGET_NAME: entry.name,
-        ROAST_MY_DEPS_TARGET_ONLY: entry.kind === 'all' ? 'false' : 'true',
-      }),
-      stdio: verbose ? ['ignore', 'inherit', 'inherit'] : 'ignore',
-    });
+    let result = await bundleEntry(configPath, cacheDir, entry, verbose);
 
-    let sizes = {};
+    if (result.code === 0) {
+      result.sizes.outputBytes = result.sizes.outputBytes - emptyResults.sizes.outputBytes;
+      result.sizes.outputBytesGz = result.sizes.outputBytesGz - emptyResults.sizes.outputBytesGz;
 
-    if (code === 0) {
-      let outputStats = await stat(entry.output);
-      let outputStatsGz = await stat(entry.outputGz);
-
-      sizes.outputBytes = outputStats.size;
-      sizes.outputBytesGz = outputStatsGz.size;
-
-      console.log(chalk.bold.bgGreen.white(`${entry.name}: ${prettyBytes(sizes.outputBytes)} min, ${prettyBytes(sizes.outputBytesGz)} min+gz`));
+      console.log(chalk.bold.bgGreen.white(
+        `${result.entry.name}: ${prettyBytes(result.sizes.outputBytes)} min, ${prettyBytes(result.sizes.outputBytesGz)} min+gz`
+      ));
     } else {
-      console.error(chalk.red(entry.name));
+      console.error(chalk.red(result.entry.name));
     }
 
-    return { entry, code, sizes };
+    return result;
   }));
 
   let hasErrors = false;
