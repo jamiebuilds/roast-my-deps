@@ -24,7 +24,7 @@ const cli = meow({
     Examples
       $ roast-my-deps
       $ roast-my-deps 'src/**/*.js' '!**/__tests__/**'
-      $ roast-my-deps --config ./path/to/your/custom/rollup.config.js
+      $ roast-my-deps --config ./path/to/your/custom/webpack.config.js
       $ roast-my-deps -i dep-a -i dep-b
       $ roast-my-deps -i dep-with-glob-*
       $ roast-my-deps --only dep-a
@@ -63,7 +63,7 @@ async function main() {
 
     let results = await roastMyDeps(pkgPath, {
       sourceGlobs: cli.input,
-      config: cli.flags.config,
+      configPath: cli.flags.config,
       ignore: arrify(cli.flags.ignore),
       only: arrify(cli.flags.only),
       verbose: cli.flags.verbose
